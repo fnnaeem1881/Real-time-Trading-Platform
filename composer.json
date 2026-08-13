@@ -1,0 +1,35 @@
+{
+    "name": "mehedi/real-time-trading-platform",
+    "description": "High-frequency cryptocurrency trading platform with real-time risk management and regulatory compliance (PHP 8.3 / Swoole).",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "ext-bcmath": "*"
+    },
+    "suggest": {
+        "ext-swoole": "Coroutine HTTP server, WebSocket ingestion and process pools for production deployment",
+        "ext-redis": "Redis Streams caching and pub/sub",
+        "ext-pdo": "PostgreSQL / TimescaleDB persistence"
+    },
+    "autoload": {
+        "psr-4": {
+            "TradingPlatform\\": "src/"
+        },
+        "classmap": [
+            "src/Order/Enums.php",
+            "src/Support/Clock.php",
+            "src/Support/Ids.php",
+            "src/Strategy/Strategy.php"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "demo": "php bin/demo.php",
+        "serve": "php -S 127.0.0.1:8080 -t public",
+        "test": "php tests/run.php"
+    }
+}

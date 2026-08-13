@@ -1,0 +1,7 @@
+vendor/
+storage/*.json
+.git/
+.idea/
+.vscode/
+*.log
+scripts/
