@@ -9,6 +9,9 @@ The trading core is pure PHP (only `ext-bcmath`) so it runs and tests anywhere.
 Infrastructure (Swoole, Redis, Postgres/TimescaleDB, Kafka, ClickHouse) sits
 behind interfaces and is optional — see [DESIGN.md](DESIGN.md).
 
+📖 **New here? Read the [Complete Guide](docs/GUIDE.md)** — what the project is,
+how it works, how to run it, and how to use every feature.
+
 ![milestones](https://img.shields.io/badge/milestones-M1..M4-blue) ·
 36 passing correctness checks · deterministic & reproducible.
 
