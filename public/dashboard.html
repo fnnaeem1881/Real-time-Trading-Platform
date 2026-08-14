@@ -65,6 +65,9 @@
   .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
   html,body{max-width:100%;overflow-x:hidden}
   canvas{width:100%;display:block}
+  /* Fixed CSS heights so the backing-store resize never compounds. */
+  #priceChart{height:230px}
+  #equityChart{height:96px}
   .kv{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-family:var(--mono)}
   .kv .k{color:var(--muted)}
   .kv .v{text-align:right;font-weight:600}
@@ -417,8 +420,10 @@ function renderBook(book, bbo){
 
 function drawLine(id, data, opt){
   const cv = $(id); const dpr = window.devicePixelRatio||1;
-  const w = cv.clientWidth, h = cv.height; cv.width = w*dpr; cv.height = h*dpr;
-  const ctx = cv.getContext('2d'); ctx.scale(dpr,dpr); ctx.clearRect(0,0,w,h);
+  // Use the CSS-driven layout size (stable), never the mutated backing height.
+  const w = cv.clientWidth || 300, h = cv.clientHeight || 120;
+  cv.width = Math.max(1, Math.round(w*dpr)); cv.height = Math.max(1, Math.round(h*dpr));
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,w,h);
   if(!data || data.length<2) return;
   let mn=Math.min(...data), mx=Math.max(...data); if(mn===mx){mn-=1;mx+=1;}
   const pad=6, gx=x=>pad+x/(data.length-1)*(w-2*pad), gy=v=>h-pad-(v-mn)/(mx-mn)*(h-2*pad);
