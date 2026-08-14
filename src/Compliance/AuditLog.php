@@ -93,4 +93,23 @@ final class AuditLog
     {
         return $this->entries;
     }
+
+    /** @return array{entries:list<array<string,mixed>>,seq:int,head:string} */
+    public function toState(): array
+    {
+        return ['entries' => $this->entries, 'seq' => $this->seq, 'head' => $this->head];
+    }
+
+    /** @param array<string,mixed> $s */
+    public static function fromState(array $s): self
+    {
+        $log = new self();
+        /** @var list<array{seq:int,ts:int,type:string,payload:array<string,mixed>,prevHash:string,hash:string}> $entries */
+        $entries = $s['entries'] ?? [];
+        $log->entries = $entries;
+        $log->seq = (int) ($s['seq'] ?? count($entries));
+        $log->head = (string) ($s['head'] ?? self::GENESIS);
+
+        return $log;
+    }
 }

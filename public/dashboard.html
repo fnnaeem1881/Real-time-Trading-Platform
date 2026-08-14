@@ -92,7 +92,10 @@
   <div class="spacer"></div>
   <div class="ctrls">
     <span class="pill" id="stepPill">step 0</span>
-    <div class="seg" title="Matching algorithm (applied on reset)">
+    <div class="seg" title="Data source">
+      <button id="modeSim" class="on">SIM</button><button id="modeLive">● LIVE</button>
+    </div>
+    <div class="seg" id="algoSeg" title="Matching algorithm (applied on reset)">
       <button id="algoFifo" class="on">FIFO</button><button id="algoPro">Pro-rata</button>
     </div>
     <button id="playBtn" class="primary">▶ Play</button>
@@ -186,7 +189,12 @@
 
   <!-- Market stats -->
   <div class="card c4">
-    <h3>Market Analysis (M1)</h3>
+    <h3><span>Market Analysis (M1)</span><span class="muted" id="venBadge"></span></h3>
+    <div class="kv" id="venueBox" style="display:none;margin-bottom:10px">
+      <div class="k">Binance BBO</div><div class="v" id="venBin">—</div>
+      <div class="k">Coinbase BBO</div><div class="v" id="venCb">—</div>
+      <div class="k">Cross-venue basis</div><div class="v" id="venBasis">—</div>
+    </div>
     <div class="kv">
       <div class="k">BTC realized vol</div><div class="v" id="volBtc">—</div>
       <div class="k">ETH realized vol</div><div class="v" id="volEth">—</div>
@@ -237,6 +245,7 @@ const money = n => (n===null||n===undefined||isNaN(n)) ? '—' : (n<0?'-$':'$')+
 const cls = n => n>0?'up':(n<0?'down':'muted');
 
 let steps = 0, maxSteps = 1200, playing = false, timer = null, algorithm = 'FIFO', busy = false;
+let mode = 'SIM';   // 'SIM' | 'LIVE'
 let prevLast = null;
 
 function toast(msg, color){ const t=$('toast'); t.textContent=msg; t.style.borderLeftColor=color||'var(--accent)'; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
@@ -246,17 +255,25 @@ async function api(path, opts){ const r = await fetch(path, opts); return r.json
 async function tick(advance){
   if(busy) return; busy = true;
   try{
-    if(advance){ steps = Math.min(maxSteps, steps + advance); }
-    const s = await api('/api/state?steps='+steps);
-    if(s && !s.error){ render(s); }
-    if(playing && steps >= maxSteps){ togglePlay(false); toast('Reached max steps ('+maxSteps+') — simulation complete', 'var(--warn)'); }
-  }catch(e){ /* server may be mid-restart */ }
+    if(mode === 'LIVE'){
+      const s = await api('/api/state?mode=live');
+      if(s && !s.error){ render(s); }
+    } else {
+      if(advance){ steps = Math.min(maxSteps, steps + advance); }
+      const s = await api('/api/state?steps='+steps);
+      if(s && !s.error){ render(s); }
+      if(playing && steps >= maxSteps){ togglePlay(false); toast('Reached max steps ('+maxSteps+') — simulation complete', 'var(--warn)'); }
+    }
+  }catch(e){ /* server may be mid-restart or a data blip */ }
   finally{ busy = false; }
 }
 
 function render(s){
-  steps = s.step;
-  $('stepPill').textContent = 'step '+s.step+' / '+maxSteps;
+  const live = s.mode === 'LIVE';
+  if(!live) steps = s.step;
+  $('stepPill').textContent = live ? ('● LIVE · tick '+s.step) : ('step '+s.step+' / '+maxSteps);
+  $('stepPill').style.color = live ? 'var(--up)' : '';
+  if(s.stale) toast('Live feed hiccup — showing last data', 'var(--warn)');
   $('sym').textContent = s.symbol; $('sym2').textContent = s.symbol;
   const last = s.lastPrice;
   $('last').textContent = fmt(last);
@@ -307,6 +324,20 @@ function render(s){
   $('volEth').textContent = fmt(s.stats.volEthPct)+'%';
   $('corr').textContent = fmt(s.stats.correlation,3);
   $('ethpx').textContent = fmt(s.stats.ethPrice);
+
+  // Venues (live multi-exchange aggregation)
+  if(s.venues){
+    $('venueBox').style.display = '';
+    $('venBadge').textContent = 'Binance · Coinbase';
+    const v = s.venues;
+    $('venBin').textContent = v.binance.bid!=null ? (fmt(v.binance.bid)+' / '+fmt(v.binance.ask)) : '—';
+    $('venCb').textContent = v.coinbase.bid!=null ? (fmt(v.coinbase.bid)+' / '+fmt(v.coinbase.ask)) : '—';
+    $('venBasis').textContent = v.basis!=null ? ('$'+fmt(v.basis)+(v.arbitrage?'  ⚡arb':'')) : '—';
+    $('venBasis').className = 'v '+(v.arbitrage?'up':'');
+  } else {
+    $('venueBox').style.display = 'none'; $('venBadge').textContent = '';
+  }
+  $('algoTag').textContent = s.totals.algorithm;
 
   // Attribution
   const attr = s.attribution||{}; const keys=Object.keys(attr);
@@ -383,24 +414,45 @@ function togglePlay(force){
   playing = force!==undefined? force : !playing;
   $('playBtn').textContent = playing? '❚❚ Pause' : '▶ Play';
   $('playBtn').className = playing? 'pause' : 'primary';
-  if(playing){ timer = setInterval(()=>tick(5), 750); } else { clearInterval(timer); }
+  clearInterval(timer);
+  if(playing){
+    // LIVE polls slower to respect exchange rate limits; SIM runs fast.
+    timer = mode === 'LIVE' ? setInterval(()=>tick(0), 2000) : setInterval(()=>tick(5), 750);
+  }
   $('livedot').style.background = playing? 'var(--up)':'var(--warn)';
 }
+
+function setMode(m){
+  if(mode === m) return;
+  mode = m;
+  $('modeSim').classList.toggle('on', m==='SIM');
+  $('modeLive').classList.toggle('on', m==='LIVE');
+  $('algoSeg').style.opacity = m==='LIVE' ? .4 : 1;
+  $('stepBtn').style.display = m==='LIVE' ? 'none' : '';
+  const wasPlaying = playing; togglePlay(false); prevLast = null;
+  toast(m==='LIVE' ? 'Switched to LIVE — real Binance + Coinbase data' : 'Switched to SIM — deterministic simulation', m==='LIVE'?'var(--up)':'var(--accent)');
+  tick(0).then(()=>{ if(wasPlaying) togglePlay(true); });
+}
+$('modeSim').onclick = ()=>setMode('SIM');
+$('modeLive').onclick = ()=>setMode('LIVE');
 
 $('playBtn').onclick = ()=>togglePlay();
 $('stepBtn').onclick = ()=>tick(10);
 $('resetBtn').onclick = async ()=>{
   togglePlay(false);
-  await api('/api/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({algorithm})});
-  steps=0; prevLast=null; toast('Simulation reset · '+algorithm,'var(--accent2)'); tick(0);
+  const body = mode==='LIVE' ? {mode:'live'} : {algorithm};
+  await api('/api/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  steps=0; prevLast=null; toast((mode==='LIVE'?'Live session reset':'Simulation reset · '+algorithm),'var(--accent2)'); tick(0);
 };
 $('algoFifo').onclick = ()=>{algorithm='FIFO';$('algoFifo').classList.add('on');$('algoPro').classList.remove('on');};
 $('algoPro').onclick = ()=>{algorithm='PRO_RATA';$('algoPro').classList.add('on');$('algoFifo').classList.remove('on');};
 
 async function submitOrder(side){
   const body = {side, type:$('oType').value, tif:$('oTif').value, qty:parseFloat($('oQty').value), price:$('oPrice').value};
+  if(mode==='LIVE') body.mode='live';
   const res = await api('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(res.error){ toast('Rejected: '+res.error,'var(--crit)'); }
+  else if(mode==='LIVE'){ toast(side+' '+body.qty+' — fills at the real BBO next tick','var(--accent2)'); if(!playing) tick(0); }
   else { toast(side+' '+body.qty+' scheduled @ step '+res.scheduledStep+' — advance to see it fill','var(--accent2)'); if(!playing) tick(1); }
 }
 $('buyBtn').onclick = ()=>submitOrder('BUY');

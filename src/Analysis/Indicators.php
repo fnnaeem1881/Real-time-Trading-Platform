@@ -146,4 +146,36 @@ final class Indicators
             'vwap' => $this->vwap(),
         ];
     }
+
+    /**
+     * Serialize the mutable running state so a live session can persist and
+     * resume indicators across requests.
+     *
+     * @return array<string,mixed>
+     */
+    public function toState(): array
+    {
+        return [
+            'emaFast' => $this->emaFast, 'emaSlow' => $this->emaSlow, 'macdSignal' => $this->macdSignal,
+            'prevClose' => $this->prevClose, 'avgGain' => $this->avgGain, 'avgLoss' => $this->avgLoss,
+            'rsiCount' => $this->rsiCount, 'cumPV' => $this->cumPV, 'cumV' => $this->cumV,
+        ];
+    }
+
+    /** @param array<string,mixed> $s */
+    public static function fromState(array $s): self
+    {
+        $i = new self();
+        $i->emaFast = $s['emaFast'] ?? null;
+        $i->emaSlow = $s['emaSlow'] ?? null;
+        $i->macdSignal = $s['macdSignal'] ?? null;
+        $i->prevClose = $s['prevClose'] ?? null;
+        $i->avgGain = $s['avgGain'] ?? null;
+        $i->avgLoss = $s['avgLoss'] ?? null;
+        $i->rsiCount = (int) ($s['rsiCount'] ?? 0);
+        $i->cumPV = (float) ($s['cumPV'] ?? 0.0);
+        $i->cumV = (float) ($s['cumV'] ?? 0.0);
+
+        return $i;
+    }
 }

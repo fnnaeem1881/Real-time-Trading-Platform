@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace TradingPlatform\Web;
 
+use TradingPlatform\Engine\LiveEngine;
 use TradingPlatform\Engine\TradingPlatform;
+use TradingPlatform\MarketData\ExchangeClient;
 
 /**
  * Stateless HTTP API over the trading platform.
@@ -27,13 +29,95 @@ final class Api
      */
     public function handle(string $method, string $path, array $query, array $body): array
     {
+        $live = (($query['mode'] ?? $body['mode'] ?? '') === 'live');
+
         return match (true) {
+            $path === '/api/state' && $live => $this->liveState(),
+            $path === '/api/order' && $method === 'POST' && $live => $this->liveOrder($body),
+            $path === '/api/reset' && $method === 'POST' && $live => $this->liveReset(),
             $path === '/api/state' => $this->state($query),
             $path === '/api/order' && $method === 'POST' => $this->order($body),
             $path === '/api/reset' && $method === 'POST' => $this->reset($body),
             $path === '/api/config' => ['status' => 200, 'body' => $this->publicConfig()],
             default => ['status' => 404, 'body' => ['error' => 'not found', 'path' => $path]],
         };
+    }
+
+    // ---- LIVE mode (real Binance + Coinbase data) -------------------------
+
+    /** @return array{status:int,body:array<string,mixed>} */
+    private function liveState(): array
+    {
+        $state = $this->loadLive();
+        $pending = $state['pending'] ?? [];
+        unset($state['pending']);
+
+        $engine = new LiveEngine(new ExchangeClient(), (float) $this->config['startingCash']);
+        $result = $engine->tick($state, $pending);
+
+        $this->saveLive($result['state']);
+
+        return ['status' => 200, 'body' => $result['snapshot']];
+    }
+
+    /** @param array<string,mixed> $body @return array{status:int,body:array<string,mixed>} */
+    private function liveOrder(array $body): array
+    {
+        $side = strtoupper((string) ($body['side'] ?? ''));
+        $type = strtoupper((string) ($body['type'] ?? 'MARKET'));
+        $tif = strtoupper((string) ($body['tif'] ?? ($type === 'MARKET' ? 'IOC' : 'GTC')));
+        $qty = (float) ($body['qty'] ?? 0);
+        $price = isset($body['price']) && $body['price'] !== '' && $body['price'] !== null ? (float) $body['price'] : null;
+
+        if (!in_array($side, ['BUY', 'SELL'], true) || $qty <= 0) {
+            return ['status' => 422, 'body' => ['error' => 'side must be BUY/SELL and qty > 0']];
+        }
+        if ($type === 'LIMIT' && $price === null) {
+            return ['status' => 422, 'body' => ['error' => 'limit orders require a price']];
+        }
+
+        $state = $this->loadLive();
+        $state['pending'][] = ['side' => $side, 'type' => $type, 'tif' => $tif, 'price' => $price, 'qty' => $qty, 'strategy' => 'MANUAL'];
+        $this->saveLive($state);
+
+        return ['status' => 200, 'body' => ['ok' => true, 'note' => 'executes at the real BBO on the next tick']];
+    }
+
+    /** @return array{status:int,body:array<string,mixed>} */
+    private function liveReset(): array
+    {
+        @unlink($this->liveePath());
+
+        return ['status' => 200, 'body' => ['ok' => true, 'mode' => 'live']];
+    }
+
+    private function liveePath(): string
+    {
+        return dirname((string) $this->config['storagePath']).'/live.json';
+    }
+
+    /** @return array<string,mixed> */
+    private function loadLive(): array
+    {
+        $path = $this->liveePath();
+        if (is_file($path)) {
+            $data = json_decode((string) file_get_contents($path), true);
+            if (is_array($data)) {
+                return $data;
+            }
+        }
+
+        return [];
+    }
+
+    /** @param array<string,mixed> $state */
+    private function saveLive(array $state): void
+    {
+        $dir = dirname($this->liveePath());
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0777, true);
+        }
+        file_put_contents($this->liveePath(), json_encode($state), LOCK_EX);
     }
 
     /** @param array<string,mixed> $query @return array{status:int,body:array<string,mixed>} */

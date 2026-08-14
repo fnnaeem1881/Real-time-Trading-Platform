@@ -85,6 +85,23 @@ final class Position
         return $this->qty->isZero();
     }
 
+    /** @return array{qty:string,avgPrice:string,realizedPnl:string} */
+    public function toState(): array
+    {
+        return ['qty' => (string) $this->qty, 'avgPrice' => (string) $this->avgPrice, 'realizedPnl' => (string) $this->realizedPnl];
+    }
+
+    /** @param array<string,mixed> $s */
+    public static function fromState(string $symbol, array $s): self
+    {
+        $p = new self($symbol);
+        $p->qty = Decimal::of((string) ($s['qty'] ?? '0'));
+        $p->avgPrice = Decimal::of((string) ($s['avgPrice'] ?? '0'));
+        $p->realizedPnl = Decimal::of((string) ($s['realizedPnl'] ?? '0'));
+
+        return $p;
+    }
+
     /** @return array<string,mixed> */
     public function toArray(Decimal $mark): array
     {

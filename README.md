@@ -25,6 +25,17 @@ composer serve            # live dashboard → http://127.0.0.1:8080
 
 Then open **http://127.0.0.1:8080** and press **▶ Play**.
 
+### Live vs simulated data
+
+The dashboard has a **SIM / LIVE** toggle:
+
+- **SIM** — a deterministic, reproducible market simulation (same seed → same run).
+- **LIVE** — **real market data** from Binance + Coinbase public APIs: live prices,
+  real order book (Binance depth), real trade tape, real BTC/ETH correlation, and
+  cross-venue basis. Your orders are matched at the **real best bid/offer** but are
+  **not** sent to any exchange (no API keys, no real money). All five feeds are
+  fetched in one parallel `curl_multi` batch (~0.5s/tick).
+
 ### Run on Swoole (the assignment's high-performance target)
 
 Swoole is Linux-only; on Windows use WSL:
