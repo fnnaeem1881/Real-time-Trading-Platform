@@ -35,8 +35,35 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-width:0}
   .card h3{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;align-items:center}
   .c12{grid-column:span 12}.c8{grid-column:span 8}.c6{grid-column:span 6}.c4{grid-column:span 4}.c3{grid-column:span 3}.c5{grid-column:span 5}.c7{grid-column:span 7}
-  @media(max-width:1100px){.c8,.c7,.c5,.c4,.c3{grid-column:span 6}}
-  @media(max-width:720px){.grid{grid-template-columns:1fr}.c12,.c8,.c7,.c6,.c5,.c4,.c3{grid-column:span 1}}
+  /* Tablet: collapse the 12-col layout to a comfortable 6-col (two cards wide). */
+  @media(max-width:1100px){.c8,.c7{grid-column:span 12}.c5,.c4,.c3{grid-column:span 6}}
+  /* Small tablet / large phone: everything full width. */
+  @media(max-width:760px){
+    .grid{grid-template-columns:1fr;gap:10px;padding:10px}
+    .c12,.c8,.c7,.c6,.c5,.c4,.c3{grid-column:span 1}
+    .topbar{gap:10px 12px;padding:10px 12px}
+    .quote .px{font-size:19px}
+    .spacer{display:none;flex:0}
+    .ctrls{width:100%;justify-content:flex-start}
+    /* Touch-friendly hit targets on phones/tablets. */
+    button,select,input,.seg button{min-height:40px}
+    .brand{font-size:14px}
+  }
+  /* Phones: tighten type + let dense tables scroll inside their card. */
+  @media(max-width:460px){
+    body{font-size:12.5px}
+    .quote{flex-wrap:wrap;gap:6px}
+    .quote .px{font-size:18px}
+    .ctrls{gap:6px}
+    button,select,input{font-size:12px;padding:8px 10px}
+    .card{padding:11px 12px}
+    .stat .val{font-size:18px}
+    .scard .n{font-size:24px}
+  }
+  /* Any wide element (tables/charts) scrolls within its card, never the page. */
+  .card table{min-width:0}
+  .scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  html,body{max-width:100%;overflow-x:hidden}
   canvas{width:100%;display:block}
   .kv{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-family:var(--mono)}
   .kv .k{color:var(--muted)}
