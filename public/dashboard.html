@@ -230,6 +230,8 @@
       <div class="k">ETH realized vol</div><div class="v" id="volEth">—</div>
       <div class="k">BTC/ETH correlation</div><div class="v" id="corr">—</div>
       <div class="k">ETH mark</div><div class="v" id="ethpx">—</div>
+      <div class="k">Pattern / trend</div><div class="v" id="pattern">—</div>
+      <div class="k">Support / resistance</div><div class="v" id="sr">—</div>
     </div>
     <h3 style="margin-top:14px">Strategy Attribution (M4)</h3>
     <div class="bars" id="attrib"></div>
@@ -249,6 +251,8 @@
       <div class="k">Match latency p50</div><div class="v" id="lp50">—</div>
       <div class="k">Match latency p99</div><div class="v" id="lp99">—</div>
       <div class="k">Pool reuse rate</div><div class="v" id="pool">—</div>
+      <div class="k">Slippage / fill rate</div><div class="v" id="execq">—</div>
+      <div class="k">Maker / taker</div><div class="v" id="mktk">—</div>
       <div class="k">Orders / trades / rej</div><div class="v" id="counts">—</div>
     </div>
   </div>
@@ -368,6 +372,21 @@ function render(s){
     $('venueBox').style.display = 'none'; $('venBadge').textContent = '';
   }
   $('algoTag').textContent = s.totals.algorithm;
+
+  // Pattern recognition (M1)
+  if(s.patterns){
+    const sig = s.patterns.patterns||[];
+    $('pattern').textContent = s.patterns.trend + (sig.length? ' · '+sig.join(', ') : '');
+    $('pattern').className = 'v '+(s.patterns.breakout==='bullish'?'up':(s.patterns.breakout==='bearish'?'down':''));
+    $('sr').textContent = (s.patterns.support!=null?fmt(s.patterns.support):'—')+' / '+(s.patterns.resistance!=null?fmt(s.patterns.resistance):'—');
+  } else { $('pattern').textContent='—'; $('sr').textContent='—'; }
+
+  // Execution quality (M4)
+  const eq = s.perf && s.perf.execQuality;
+  if(eq){
+    $('execq').textContent = fmt(eq.avgSlippageBps,3)+' bps / '+fmt(eq.fillRatePct,0)+'%';
+    $('mktk').textContent = fmt(eq.makerPct,0)+'% / '+fmt(eq.takerPct,0)+'%';
+  } else { $('execq').textContent='—'; $('mktk').textContent='—'; }
 
   // Attribution
   const attr = s.attribution||{}; const keys=Object.keys(attr);

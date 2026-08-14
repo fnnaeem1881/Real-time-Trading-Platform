@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace TradingPlatform\Engine;
 
 use TradingPlatform\Analysis\Indicators;
+use TradingPlatform\Analysis\PatternRecognition;
 use TradingPlatform\Analysis\Statistics;
+use TradingPlatform\Analytics\ExecutionQuality;
 use TradingPlatform\Compliance\AuditLog;
 use TradingPlatform\Compliance\MiFIDReporter;
 use TradingPlatform\MarketData\Aggregator;
@@ -112,6 +114,14 @@ final class LiveEngine
         }
         $state['indicators'] = $ind->toState();
 
+        // Price-pattern recognition on the real price.
+        $pr = PatternRecognition::fromState($state['pattern'] ?? []);
+        if ($inspect['ok']) {
+            $pr->update($last);
+        }
+        $state['pattern'] = $pr->toState();
+        $execq = ExecutionQuality::fromState($state['execq'] ?? []);
+
         $state['ticks']++;
         $state['priceHistory'][] = round($last, 2);
         $ethMid = $ethBbo !== null ? ($ethBbo['bid'] + $ethBbo['ask']) / 2 : ($state['ethHistory'] ? end($state['ethHistory']) : 0.0);
@@ -143,8 +153,9 @@ final class LiveEngine
         }
 
         foreach ($intents as $intent) {
-            $this->executeIntent($intent, $portfolio, $risk, $audit, $mifid, $alerts, $marks, $bid, $ask, $last, $clock->nowMillis(), $state);
+            $this->executeIntent($intent, $portfolio, $risk, $audit, $mifid, $alerts, $marks, $bid, $ask, $last, $clock->nowMillis(), $state, $execq);
         }
+        $state['execq'] = $execq->toState();
 
         // ---- 7. Mark-to-market + P&L --------------------------------------
         $equity = $portfolio->equity($marks)->toFloat();
@@ -210,7 +221,7 @@ final class LiveEngine
      * @param array<string,Decimal> $marks
      * @param array<string,mixed> $state
      */
-    private function executeIntent(array $intent, Portfolio $portfolio, RiskEngine $risk, AuditLog $audit, MiFIDReporter $mifid, AlertManager $alerts, array $marks, float $bid, float $ask, float $last, int $tsMs, array &$state): void
+    private function executeIntent(array $intent, Portfolio $portfolio, RiskEngine $risk, AuditLog $audit, MiFIDReporter $mifid, AlertManager $alerts, array $marks, float $bid, float $ask, float $last, int $tsMs, array &$state, ExecutionQuality $execq): void
     {
         $side = Side::from((string) $intent['side']);
         $type = OrderType::from((string) ($intent['type'] ?? 'MARKET'));
@@ -250,6 +261,10 @@ final class LiveEngine
         $portfolio->applyFill($fill);
         $realizedDelta = $pos->realizedPnl->sub($realizedBefore)->toFloat();
 
+        // Execution-quality: slippage vs the arrival mid, fill rate, maker/taker.
+        $refMid = ($bid + $ask) / 2;
+        $execq->record($side->value, $refMid, $execPrice, $qty->toFloat(), $qty->toFloat(), Liquidity::Taker->value);
+
         // Attribution (kept in state).
         $b = $state['attribution'][$strategy] ?? ['realized' => 0.0, 'notional' => 0.0, 'fills' => 0, 'volume' => 0.0];
         $b['realized'] += $realizedDelta;
@@ -274,6 +289,8 @@ final class LiveEngine
             $s['alerts'] ??= [];
             $s['tape'] ??= [];
             $s['attribution'] ??= [];
+            $s['pattern'] ??= (new PatternRecognition())->toState();
+            $s['execq'] ??= (new ExecutionQuality())->toState();
 
             return $s;
         }
@@ -288,6 +305,8 @@ final class LiveEngine
             'audit' => (new AuditLog())->toState(),
             'highWater' => $this->startingCash, 'killSwitch' => false,
             'alerts' => [], 'tape' => [], 'attribution' => [],
+            'pattern' => (new PatternRecognition())->toState(),
+            'execq' => (new ExecutionQuality())->toState(),
             'tradeCount' => 0, 'rejected' => 0,
             'lastRisk' => [],
         ];
@@ -371,6 +390,7 @@ final class LiveEngine
                 'basis' => ($bid && $cbBid) ? round($bid - $cbBid, 2) : null,
                 'arbitrage' => $arb,
             ],
+            'patterns' => PatternRecognition::fromState($state['pattern'] ?? [])->detect(),
             'risk' => array_merge($risk, ['limits' => (new RiskLimits())->toArray()]),
             'compliance' => [
                 'auditCount' => count($auditEntries),
@@ -385,6 +405,7 @@ final class LiveEngine
                 'objectPool' => ['created' => 0, 'reused' => 0, 'free' => 0, 'reuseRate' => 1.0],
                 'ringDropped' => 0,
                 'dataLatencyMs' => round($fetchMs, 1),
+                'execQuality' => ExecutionQuality::fromState($state['execq'] ?? [])->summary(),
             ],
             'attribution' => $state['attribution'],
             'tape' => array_map(static fn (array $t): array => ['price' => $t['price'], 'qty' => $t['qty'], 'side' => $t['side'], 'ts' => $t['ts']], array_slice($state['tape'], 0, 15)),
