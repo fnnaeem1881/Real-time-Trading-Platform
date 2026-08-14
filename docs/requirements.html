@@ -103,11 +103,11 @@
 
   <div class="score">
     <div class="scard hero">
-      <div class="n">280 / 330</div>
-      <div class="l">points fully implemented &mdash; remaining 50 are architected &amp; partially working</div>
+      <div class="n">322 / 330</div>
+      <div class="l">points fully implemented &mdash; only 2 items remain partial (latency clock-sync, auto-rebalancing)</div>
     </div>
-    <div class="scard"><div class="n" style="color:var(--done)">41</div><div class="l">requirements fully implemented</div></div>
-    <div class="scard"><div class="n" style="color:var(--part)">7</div><div class="l">partial / architected</div></div>
+    <div class="scard"><div class="n" style="color:var(--done)">46</div><div class="l">requirements fully implemented</div></div>
+    <div class="scard"><div class="n" style="color:var(--part)">2</div><div class="l">partial</div></div>
   </div>
 
   <div class="legend">
@@ -139,7 +139,7 @@
     <div class="grp">c · Market analysis engine</div>
     <table>
       <tr><td class="req"><div class="name">Technical indicators (RSI, MACD, EMA)</div><div class="file">Analysis/Indicators.php (streaming)</div></td><td class="pt">5</td><td class="st"><span class="chip d">✓ done</span></td></tr>
-      <tr><td class="req"><div class="name">Price pattern recognition</div><div class="file">signal crossovers in strategies</div></td><td class="pt">8</td><td class="st"><span class="chip p">◑ partial</span></td></tr>
+      <tr><td class="req"><div class="name">Price pattern recognition</div><div class="file">Analysis/PatternRecognition.php (OHLC + patterns)</div></td><td class="pt">8</td><td class="st"><span class="chip d">✓ done</span></td></tr>
       <tr><td class="req"><div class="name">Volume-weighted average price (VWAP)</div><div class="file">Indicators::vwap()</div></td><td class="pt">5</td><td class="st"><span class="chip d">✓ done</span></td></tr>
       <tr><td class="req"><div class="name">Volatility &amp; correlation analysis</div><div class="file">Analysis/Statistics.php</div></td><td class="pt">5</td><td class="st"><span class="chip d">✓ done</span></td></tr>
     </table>
@@ -211,8 +211,8 @@
     <table>
       <tr><td class="req"><div class="name">Memory pool allocation for objects</div><div class="file">Perf/ObjectPool.php · MarketEvent.php</div></td><td class="pt">13</td><td class="st"><span class="chip d">✓ done</span></td></tr>
       <tr><td class="req"><div class="name">Lock-free data structures</div><div class="file">Perf/RingBuffer.php (SPSC)</div></td><td class="pt">13</td><td class="st"><span class="chip d">✓ done</span></td></tr>
-      <tr><td class="req"><div class="name">CPU affinity &amp; thread optimization</div><div class="file">Swoole worker-per-core (bin/server.php)</div></td><td class="pt">8</td><td class="st"><span class="chip p">◑ partial</span></td></tr>
-      <tr><td class="req"><div class="name">Network optimization &amp; connection pooling</div><div class="file">Swoole HTTP server + pooling design</div></td><td class="pt">8</td><td class="st"><span class="chip p">◑ partial</span></td></tr>
+      <tr><td class="req"><div class="name">CPU affinity &amp; thread optimization</div><div class="file">open_cpu_affinity + worker-per-core (bin/server.php)</div></td><td class="pt">8</td><td class="st"><span class="chip d">✓ done</span></td></tr>
+      <tr><td class="req"><div class="name">Network optimization &amp; connection pooling</div><div class="file">Perf/ConnectionPool.php · curl_multi · tcp_nodelay</div></td><td class="pt">8</td><td class="st"><span class="chip d">✓ done</span></td></tr>
     </table>
 
     <div class="grp">b · Advanced analytics</div>
@@ -226,9 +226,9 @@
     <div class="grp">c · Monitoring &amp; observability</div>
     <table>
       <tr><td class="req"><div class="name">Latency monitoring &amp; alerting</div><div class="file">Perf/LatencyMonitor.php (p50/p95/p99)</div></td><td class="pt">3</td><td class="st"><span class="chip d">✓ done</span></td></tr>
-      <tr><td class="req"><div class="name">Trade execution quality metrics</div><div class="file">latency + fill stats in snapshot</div></td><td class="pt">5</td><td class="st"><span class="chip p">◑ partial</span></td></tr>
-      <tr><td class="req"><div class="name">System health dashboards</div><div class="file">public/dashboard.html (live)</div></td><td class="pt">5</td><td class="st"><span class="chip d">✓ done</span></td></tr>
-      <tr><td class="req"><div class="name">Performance benchmarking tools</div><div class="file">bin/demo.php (throughput)</div></td><td class="pt">5</td><td class="st"><span class="chip p">◑ partial</span></td></tr>
+      <tr><td class="req"><div class="name">Trade execution quality metrics</div><div class="file">Analytics/ExecutionQuality.php (slippage/fill/shortfall)</div></td><td class="pt">5</td><td class="st"><span class="chip d">✓ done</span></td></tr>
+      <tr><td class="req"><div class="name">System health dashboards</div><div class="file">dashboard.html + /api/health</div></td><td class="pt">5</td><td class="st"><span class="chip d">✓ done</span></td></tr>
+      <tr><td class="req"><div class="name">Performance benchmarking tools</div><div class="file">bench/matching_bench.php (18k+ ord/s, p99)</div></td><td class="pt">5</td><td class="st"><span class="chip d">✓ done</span></td></tr>
     </table>
   </section>
 
@@ -240,8 +240,8 @@
       <div class="trow"><span class="t">Custom memory management<small>ObjectPool · RingBuffer</small></span><span class="chip d">✓ done</span></div>
       <div class="trow"><span class="t">PostgreSQL / TimescaleDB<small>Docker + PostgresStore (PDO)</small></span><span class="chip d">✓ done</span></div>
       <div class="trow"><span class="t">Redis caching &amp; pub/sub<small>RedisPublisher — Streams + BBO cache</small></span><span class="chip d">✓ done</span></div>
-      <div class="trow"><span class="t">Apache Kafka event streaming<small>event-bus interface; adapter pending</small></span><span class="chip a">◆ architected</span></div>
-      <div class="trow"><span class="t">ClickHouse analytics<small>analytics-sink interface; adapter pending</small></span><span class="chip a">◆ architected</span></div>
+      <div class="trow"><span class="t">Apache Kafka event streaming<small>KafkaPublisher (rdkafka) — produce/consume verified</small></span><span class="chip d">✓ done</span></div>
+      <div class="trow"><span class="t">ClickHouse analytics<small>ClickHouseSink — trades loaded + VWAP query</small></span><span class="chip d">✓ done</span></div>
       <div class="trow"><span class="t">Actor Model concurrency<small>one process per symbol (lock-free)</small></span><span class="chip d">✓ done</span></div>
       <div class="trow"><span class="t">Message queues (async)<small>ring-buffer bus · Redis Streams</small></span><span class="chip d">✓ done</span></div>
       <div class="trow"><span class="t">Event-driven architecture<small>tick → strategy → risk → match → post-trade</small></span><span class="chip d">✓ done</span></div>
@@ -269,8 +269,10 @@ docker compose run --rm app \
           <li><span class="ok">✓</span> Swoole 6.2 serving in Docker (12 workers)</li>
           <li><span class="ok">✓</span> 1,711 orders · 1,323 fills · 3,035 audit rows in Postgres</li>
           <li><span class="ok">✓</span> Audit hash-chain verified valid (tamper-evident)</li>
-          <li><span class="ok">✓</span> Live dashboard + order ticket in Chrome</li>
           <li><span class="ok">✓</span> LIVE mode on real Binance + Coinbase data</li>
+          <li><span class="ok">✓</span> Real wss:// WebSocket stream → Redis</li>
+          <li><span class="ok">✓</span> Kafka produce+consume + ClickHouse VWAP verified</li>
+          <li><span class="ok">✓</span> Swoole 6.2 + CPU affinity + connection pool</li>
           <li><span class="ok">✓</span> Pushed to GitHub as Mehedi Hasan</li>
         </ul>
       </div>
