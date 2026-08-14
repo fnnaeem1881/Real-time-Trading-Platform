@@ -87,6 +87,16 @@ final class LiveEngine
 
         $bid = $bbo['bid'];
         $ask = $bbo['ask'];
+        // Prefer the WebSocket-fed BBO (bin/ws_ingest.php → Redis) when it is
+        // running and fresh — true streaming ingestion instead of REST polling.
+        $source = 'REST';
+        $ws = $this->wsBbo();
+        if ($ws !== null) {
+            $bid = $ws['bid'];
+            $ask = $ws['ask'];
+            $source = 'WEBSOCKET';
+        }
+        $state['dataSource'] = $source;
         $mid = ($bid + $ask) / 2;
         $last = isset($trades[0]) ? (float) $trades[0]['price'] : $mid;
         $vol = 0.0;
@@ -188,6 +198,41 @@ final class LiveEngine
         $snap = $this->snapshot($state, $depth, $trades, $cb, $ethBbo, $fetchMs, false, $arb, $bbo);
 
         return ['state' => $state, 'snapshot' => $snap];
+    }
+
+    /**
+     * Read the WebSocket-fed BBO from Redis if the ingest process is running and
+     * the quote is fresh (< 5s). Returns null otherwise (fall back to REST).
+     *
+     * @return array{bid:float,ask:float}|null
+     */
+    private function wsBbo(): ?array
+    {
+        if (!extension_loaded('redis')) {
+            return null;
+        }
+        $host = getenv('REDIS_HOST') ?: null;
+        if ($host === null) {
+            return null;
+        }
+        try {
+            $r = new \Redis();
+            if (!@$r->connect($host, 6379, 0.3)) {
+                return null;
+            }
+            $h = $r->hGetAll('ws:bbo:BTCUSDT');
+            $r->close();
+            if (!is_array($h) || !isset($h['bid'], $h['ask'], $h['ts'])) {
+                return null;
+            }
+            if ((int) (microtime(true) * 1000) - (int) $h['ts'] > 5000) {
+                return null; // stale — the ingest process isn't keeping up
+            }
+
+            return ['bid' => (float) $h['bid'], 'ask' => (float) $h['ask']];
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /** Decide an auto-strategy intent from indicators + current position. */
@@ -410,7 +455,7 @@ final class LiveEngine
             'attribution' => $state['attribution'],
             'tape' => array_map(static fn (array $t): array => ['price' => $t['price'], 'qty' => $t['qty'], 'side' => $t['side'], 'ts' => $t['ts']], array_slice($state['tape'], 0, 15)),
             'alerts' => array_reverse(array_slice($state['alerts'], -8)),
-            'totals' => ['trades' => $state['tradeCount'], 'volume' => round(array_sum(array_map(static fn (array $t): float => (float) $t['qty'], $trades)), 3), 'rejected' => $state['rejected'], 'algorithm' => 'LIVE · Binance+Coinbase'],
+            'totals' => ['trades' => $state['tradeCount'], 'volume' => round(array_sum(array_map(static fn (array $t): float => (float) $t['qty'], $trades)), 3), 'rejected' => $state['rejected'], 'algorithm' => 'LIVE · '.($state['dataSource'] ?? 'REST').' · Binance+Coinbase'],
             'audit' => array_map(static fn (array $e): array => ['seq' => $e['seq'], 'type' => $e['type'], 'hash' => substr($e['hash'], 0, 12)], array_slice($auditEntries, -8)),
         ];
     }

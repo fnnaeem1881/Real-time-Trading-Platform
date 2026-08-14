@@ -96,4 +96,47 @@ if (extension_loaded('redis')) {
     echo "  (ext-redis not loaded; skipping Redis publish)\n";
 }
 
+// 6. ClickHouse: load trades into the columnar analytics store + sample query.
+$chUrl = getenv('CLICKHOUSE_URL') ?: 'http://clickhouse:8123';
+try {
+    $ch = new \TradingPlatform\Persistence\ClickHouseSink($chUrl);
+    if ($ch->ping()) {
+        $ch->migrate();
+        $rows = [];
+        foreach ($p->recordedFills() as $f) {
+            $rows[] = [
+                'ts' => gmdate('Y-m-d H:i:s.', intdiv($f->tsNanos, 1_000_000_000)).sprintf('%03d', intdiv($f->tsNanos, 1_000_000) % 1000),
+                'account' => $accountId, 'symbol' => $f->symbol, 'side' => $f->side->value,
+                'strategy' => $f->strategy ?? 'MANUAL', 'price' => $f->price->toFloat(),
+                'qty' => $f->qty->toFloat(), 'notional' => $f->notional()->toFloat(),
+            ];
+        }
+        $n = $ch->insertTrades($rows);
+        $vwap = trim($ch->query("SELECT symbol, round(sum(notional)/sum(qty),2) AS vwap, count() AS fills FROM trading.trades_analytics GROUP BY symbol FORMAT TSV"));
+        echo $c("✓ Loaded {$n} trades into ClickHouse", '1;32')." — analytics VWAP:\n    ".str_replace("\n", "\n    ", $vwap)."\n";
+    } else {
+        echo "  (ClickHouse not reachable at {$chUrl}; skipping)\n";
+    }
+} catch (\Throwable $e) {
+    echo "  (ClickHouse load skipped: ".$e->getMessage().")\n";
+}
+
+// 7. Kafka: publish trade events to the event stream.
+if (extension_loaded('rdkafka')) {
+    try {
+        $kafka = new \TradingPlatform\Persistence\KafkaPublisher(getenv('KAFKA_BROKERS') ?: 'kafka:9092');
+        $published = 0;
+        foreach (array_slice($p->recordedFills(), 0, 200) as $f) {
+            $kafka->publish('trades', $f->toArray(), $f->symbol);
+            $published++;
+        }
+        $kafka->flush(3000);
+        echo $c("✓ Published {$published} trade events to Kafka topic 'trades'\n", '1;32');
+    } catch (\Throwable $e) {
+        echo "  (Kafka publish skipped: ".$e->getMessage().")\n";
+    }
+} else {
+    echo "  (ext-rdkafka not loaded; skipping Kafka publish)\n";
+}
+
 echo "\n".$c('Done.', '1;32')." Query it:  docker compose exec postgres psql -U trading -d trading -c 'SELECT * FROM positions;'\n";
